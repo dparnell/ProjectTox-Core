@@ -50,7 +50,7 @@ void on_request(uint8_t* public_key, uint8_t* data, uint16_t length) {
 void on_message(int friendnumber, uint8_t* string, uint16_t length) {
   size_t i;
 
-  wprintw(prompt->window, "\n(message) %d: %s!\n", friendnumber, string);
+  wprintw(prompt->window, "\n(message) %d: %s\n", friendnumber, string);
 
   for(i=0; i<w_num; i++) {
     if(windows[i].onMessage != NULL)
@@ -170,12 +170,12 @@ static void do_tox() {
   doMessenger();
 }
 
-static void load_data() {
+static void load_data(char *path) {
   FILE* fd;
   size_t len;
   uint8_t* buf;
 
-  if((fd = fopen("data", "r")) != NULL) {
+  if((fd = fopen(path, "r")) != NULL) {
     fseek(fd, 0, SEEK_END);
     len = ftell(fd);
     fseek(fd, 0, SEEK_SET);
@@ -213,7 +213,7 @@ static void load_data() {
 
     Messenger_save(buf);
 
-    fd = fopen("data", "w");
+    fd = fopen(path, "w");
     if(fd == NULL) {
       fprintf(stderr, "fopen() failed.\n");
 
@@ -280,34 +280,37 @@ void prepare_window(WINDOW* w) {
   wresize(w, LINES-2, COLS);
 }
 
-/* 
- * Draws cursor relative to input on prompt window.
- * Removes cursor on friends window and chat windows.
- *
- * TODO: Make it work for chat windows
- */
-void position_cursor(WINDOW* w, char* title)
-{
-  curs_set(1);
-  if (strcmp(title, "[prompt]") == 0) {    // main/prompt window
-    int x, y;
-    getyx(w, y, x);
-    move(y, x);
-  }
-  else if (strcmp(title, "[friends]") == 0)    // friends window
-    curs_set(0);
-  else    // any other window (i.e chat)
-    curs_set(0);
-}
-
 int main(int argc, char* argv[]) {
   int ch;
+  int i = 0;
+  int f_flag = 0;
+  char *filename = "data";
   ToxWindow* a;
+
+    for(i = 0; i < argc; i++) {
+        if(argv[i][0] == '-') {
+            if(argv[i][1] == 'f') {
+                if(argv[i + 1] != NULL)
+                    filename = argv[i + 1];
+                else {
+                    f_flag = -1;
+                }
+            }
+        }
+    }
 
   init_term();
   init_tox();
-  load_data();
+  load_data(filename);
   init_windows();
+
+  if(f_flag == -1) {
+    attron(COLOR_PAIR(3) | A_BOLD);
+    wprintw(prompt->window, "You passed '-f' without giving an argument!\n"
+                            "defaulting to 'data' for a keyfile...\n");
+    attroff(COLOR_PAIR(3) | A_BOLD);
+  }
+    
 
   while(true) {
     // Update tox.
@@ -317,9 +320,8 @@ int main(int argc, char* argv[]) {
     a = &windows[w_active];
     prepare_window(a->window);
     a->blink = false;
-    a->onDraw(a);
     draw_bar();
-    position_cursor(a->window, a->title);
+    a->onDraw(a);
 
     // Handle input.
     ch = getch();
