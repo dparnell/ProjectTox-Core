@@ -183,7 +183,7 @@ void line_eval(char lines[HISTORY][STRING_LENGTH], char *line)
                 }
             }
             int num = atoi(numstring);
-            if (m_sendmessage(num, (uint8_t*) message, strlen(message) + 1) != 1) {
+            if (m_sendmessage(num, (uint8_t*) message, (uint32_t)strlen(message) + 1) != 1) {
                 new_lines("[i] could not send message");
             } else {
                 new_lines(format_message(message, -1));
@@ -360,7 +360,7 @@ void load_key()
     if (data_file) {
         //load keys
         fseek(data_file, 0, SEEK_END);
-        int size = ftell(data_file);
+        int size = (int)ftell(data_file);
         fseek(data_file, 0, SEEK_SET);
         uint8_t data[size];
         if (fread(data, sizeof(uint8_t), size, data_file) != size){

@@ -243,7 +243,7 @@ static void execute(ToxWindow* self, char* cmd) {
     msg[0] = 0;
     msg++;
 
-    if(m_sendmessage(atoi(id), (uint8_t*) msg, strlen(msg)+1) < 0) {
+    if(m_sendmessage(atoi(id), (uint8_t*) msg, (uint32_t)strlen(msg)+1) < 0) {
       wprintw(self->window, "Error occurred while sending message.\n");
     }
     else {

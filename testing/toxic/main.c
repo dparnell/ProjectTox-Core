@@ -199,7 +199,7 @@ static void load_data() {
       exit(1);
     }
 
-    Messenger_load(buf, len);
+    Messenger_load(buf, (uint32_t)len);
   }
   else { 
     len = Messenger_size();
