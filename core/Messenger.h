@@ -125,6 +125,9 @@ uint16_t getself_name(uint8_t *name);
     return -1 if failure */
 int getname(int friendnumber, uint8_t *name);
 
+/* calls the namechange callback for each friend */
+void enumerate_friends();
+    
 /* set our user status
     you are responsible for freeing status after
     returns 0 on success, -1 on failure */

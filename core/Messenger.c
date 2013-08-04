@@ -361,6 +361,20 @@ void m_callback_userstatus(void (*function)(int, uint8_t *, uint16_t))
     friend_statuschange_isset = 1;
 }
 
+/* calls the namechange callback for each friend */
+void enumerate_friends() {
+    if(friend_namechange_isset) {
+        uint32_t i;
+        for (i=0; i < numfriends; i++) {
+            if(friendlist[i].status != 0) {
+                uint8_t* name = friendlist[i].name;
+                friend_namechange(i, name, strlen((const char*)name));
+            }
+        }
+    }
+}
+
+
 #define PORT 33445
 /* run this at startup */
 int initMessenger()
