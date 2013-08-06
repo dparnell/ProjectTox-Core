@@ -42,7 +42,12 @@ char *help = "[i] commands:\n/f ID (to add friend)\n/m friendnumber message  "
              "name)\n/q (to quit)";
 int x, y;
 
-uint8_t pending_requests[256][CLIENT_ID_SIZE];
+typedef struct {
+    uint8_t id[CLIENT_ID_SIZE];
+    uint8_t accepted;
+} Friend_request;
+
+Friend_request pending_requests[256];
 uint8_t num_requests = 0;
 
 void get_id(char *data)
@@ -223,7 +228,7 @@ void line_eval(char *line)
                 status[i-3] = line[i];
             }
             status[i-3] = 0;
-            m_set_userstatus(status, strlen((char*)status) + 1);
+            m_set_userstatus(USERSTATUS_KIND_ONLINE, status, strlen((char*)status) + 1);
             char numstring[100];
             sprintf(numstring, "[i] changed status to %s", (char*)status);
             new_lines(numstring);
@@ -231,15 +236,21 @@ void line_eval(char *line)
         else if (inpt_command == 'a') {
             uint8_t numf = atoi(line + 3);
             char numchar[100];
-            int num = m_addfriend_norequest(pending_requests[numf]);
-            if (num != -1) {
-                sprintf(numchar, "[i] friend request %u accepted", numf);
-                new_lines(numchar);
-                sprintf(numchar, "[i] added friendnumber %d", num);
+            if (numf >= num_requests || pending_requests[numf].accepted) {
+                sprintf(numchar,"[i] you either didn't receive that request or you already accepted it");
                 new_lines(numchar);
             } else {
-                sprintf(numchar, "[i] failed to add friend");
-                new_lines(numchar);
+                int num = m_addfriend_norequest(pending_requests[numf].id);
+                if (num != -1) {
+                    pending_requests[numf].accepted = 1;
+                    sprintf(numchar, "[i] friend request %u accepted", numf);
+                    new_lines(numchar);
+                    sprintf(numchar, "[i] added friendnumber %d", num);
+                    new_lines(numchar);
+                } else {
+                    sprintf(numchar, "[i] failed to add friend");
+                    new_lines(numchar);
+                }
             }
             do_refresh();
         }
@@ -332,7 +343,8 @@ void print_request(uint8_t *public_key, uint8_t *data, uint16_t length)
     char numchar[100];
     sprintf(numchar, "[i] accept request with /a %u", num_requests);
     new_lines(numchar);
-    memcpy(pending_requests[num_requests], public_key, CLIENT_ID_SIZE);
+    memcpy(pending_requests[num_requests].id, public_key, CLIENT_ID_SIZE);
+    pending_requests[num_requests].accepted = 0;
     ++num_requests;
     do_refresh();
 }
@@ -352,7 +364,7 @@ void print_nickchange(int friendnumber, uint8_t *string, uint16_t length)
     }
 }
 
-void print_statuschange(int friendnumber, uint8_t *string, uint16_t length)
+void print_statuschange(int friendnumber, USERSTATUS_KIND kind, uint8_t *string, uint16_t length)
 {
     char name[MAX_NAME_LENGTH];
     if(getname(friendnumber, (uint8_t*)name) != -1) {
@@ -380,7 +392,7 @@ void load_key(char *path)
         }
         Messenger_load(data, size);
 
-    } else { 
+    } else {
         //else save new keys
         int size = Messenger_size();
         uint8_t data[size];

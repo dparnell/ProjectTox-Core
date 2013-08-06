@@ -91,7 +91,7 @@ static void execute(ToxWindow* self, char* cmd) {
     dht.ip.i = resolved_address;
     unsigned char *binary_string = hex_string_to_bin(key);
     DHT_bootstrap(dht, binary_string);
-    free(binary_string); 
+    free(binary_string);
   }
   else if(!strncmp(cmd, "add ", strlen("add "))) {
     uint8_t id_bin[32];
@@ -137,7 +137,7 @@ static void execute(ToxWindow* self, char* cmd) {
 
     num = m_addfriend(id_bin, (uint8_t*) msg, strlen(msg)+1);
     switch (num) {
-    case -1: 
+    case -1:
       wprintw(self->window, "Message is too long.\n");
       break;
     case -2:
@@ -151,14 +151,16 @@ static void execute(ToxWindow* self, char* cmd) {
       break;
     case -5:
       wprintw(self->window, "Undefined error when adding friend.\n");
-      break; 
+      break;
     default:
       wprintw(self->window, "Friend added as %d.\n", num);
       on_friendadded(num);
       break;
     }
   }
-
+  else if(!strcmp(cmd, "clear")) { 
+  	wclear(self->window);
+  }
   else if(!strcmp(cmd, "help")) {
 	  print_usage(self);
   }
@@ -172,7 +174,7 @@ static void execute(ToxWindow* self, char* cmd) {
     }
     msg++;
 
-    m_set_userstatus((uint8_t*) msg, strlen(msg)+1);
+    m_set_userstatus(USERSTATUS_KIND_RETAIN, (uint8_t*) msg, strlen(msg)+1);
     wprintw(self->window, "Status set to: %s\n", msg);
   }
   else if(!strncmp(cmd, "nick ", strlen("nick "))) {
@@ -316,7 +318,7 @@ static void print_usage(ToxWindow* self) {
   wprintw(self->window, "      myid                      : Print your ID\n");
   wprintw(self->window, "      quit/exit                 : Exit program\n");
   wprintw(self->window, "      help                      : Print this message again\n");
-
+  wprintw(self->window, "      clear                     : Clear this window\n");
 
   wattron(self->window, A_BOLD);
   wprintw(self->window, "TIP: Use the TAB key to navigate through the tabs.\n\n");
