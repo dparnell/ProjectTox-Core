@@ -29,6 +29,10 @@
 #define WAIT_COUNT 30
 #define WAIT_TIME 500
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 /* first step, second step */
 #define FIRST_FLAG 0x1
 #define SECOND_FLAG 0x2
@@ -132,7 +136,7 @@ int parent_wait_for_message(void)
     }
 
     if(!(request_flags & SECOND_FLAG)) {
-        fputs("\nParent hasn't recieved the message yet!\n"
+        fputs("\nParent hasn't received the message yet!\n"
               "Messaging may be broken, failing the build!\n", stderr);
         kill(child_pid, SIGKILL);
         return -1;
