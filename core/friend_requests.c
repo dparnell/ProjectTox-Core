@@ -25,15 +25,22 @@
 
 uint8_t self_public_key[crypto_box_PUBLICKEYBYTES];
 
+
 /* Try to send a friendrequest to peer with public_key
    data is the data in the request and length is the length.
    return -1 if failure.
    return  0 if it sent the friend request directly to the friend.
    return the number of peers it was routed through if it did not send it directly.*/
-int send_friendrequest(uint8_t * public_key, uint8_t * data, uint32_t length)
+int send_friendrequest(uint8_t * public_key, uint32_t nospam_num, uint8_t * data, uint32_t length)
 {
+    if(length - sizeof(nospam_num) > MAX_DATA_SIZE)
+        return -1;
+    
+    uint8_t temp[MAX_DATA_SIZE];
+    memcpy(temp, &nospam_num, sizeof(nospam_num));
+    memcpy(temp + sizeof(nospam_num), data, length);
     uint8_t packet[MAX_DATA_SIZE];
-    int len = create_request(packet, public_key, data, length, 32); /* 32 is friend request packet id */
+    int len = create_request(packet, public_key, temp, length + sizeof(nospam_num), 32); /* 32 is friend request packet id */
 
     if (len == -1)
         return -1;
@@ -57,14 +64,29 @@ int send_friendrequest(uint8_t * public_key, uint8_t * data, uint32_t length)
     return num;
 }
 
-static void (*handle_friendrequest)(uint8_t *, uint8_t *, uint16_t);
-static uint8_t handle_friendrequest_isset = 0;
+static uint32_t nospam;
+/*
+ * Set and get the nospam variable used to prevent one type of friend request spam
+ */
+void set_nospam(uint32_t num)
+{
+    nospam = num;
+}
 
+uint32_t get_nospam()
+{
+    return nospam;
+}
+
+static void (*handle_friendrequest)(uint8_t *, uint8_t *, uint16_t, void*);
+static uint8_t handle_friendrequest_isset = 0;
+static void* handle_friendrequest_userdata;
 /* set the function that will be executed when a friend request is received. */
-void callback_friendrequest(void (*function)(uint8_t *, uint8_t *, uint16_t))
+void callback_friendrequest(void (*function)(uint8_t *, uint8_t *, uint16_t, void*), void* userdata)
 {
     handle_friendrequest = function;
     handle_friendrequest_isset = 1;
+    handle_friendrequest_userdata = userdata;
 }
 
 
@@ -114,14 +136,17 @@ static int friendreq_handlepacket(IP_Port source, uint8_t * packet, uint32_t len
             uint8_t public_key[crypto_box_PUBLICKEYBYTES];
             uint8_t data[MAX_DATA_SIZE];
             int len = handle_request(public_key, data, packet, length);
-
             if (len == -1)
+                return 1;
+            if (len <= sizeof(nospam))
                 return 1;
             if (request_received(public_key))
                 return 1;
+            if (memcmp(data, &nospam, sizeof(nospam)) != 0)
+                return 1;
 
             addto_receivedlist(public_key);
-            (*handle_friendrequest)(public_key, data, len);
+            (*handle_friendrequest)(public_key, data + 4, len - 4, handle_friendrequest_userdata);
         } else { /* if request is not for us, try routing it. */
             if(route_packet(packet + 1, packet, length) == length)
                 return 0;

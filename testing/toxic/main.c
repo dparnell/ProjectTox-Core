@@ -25,7 +25,7 @@
 extern ToxWindow new_prompt();
 extern ToxWindow new_friendlist();
 
-extern int friendlist_onFriendAdded(int num);
+extern int friendlist_onFriendAdded(Messenger *m, int num);
 extern void disable_chatwin(int f_num);
 extern int add_req(uint8_t *public_key); // XXX
 extern unsigned char *hex_string_to_bin(char hex_string[]);
@@ -40,11 +40,13 @@ char WINDOW_STATUS[MAX_WINDOW_SLOTS];
 static ToxWindow windows[MAX_WINDOW_SLOTS];
 static ToxWindow* prompt;
 
+static Messenger *m;
+
 int w_num;
 int active_window;
 
 /* CALLBACKS START */
-void on_request(uint8_t *public_key, uint8_t *data, uint16_t length)
+void on_request(uint8_t *public_key, uint8_t *data, uint16_t length, void* userdata)
 {
   int n = add_req(public_key);
   wprintw(prompt->window, "\nFriend request from:\n");
@@ -63,25 +65,25 @@ void on_request(uint8_t *public_key, uint8_t *data, uint16_t length)
   }
 }
 
-void on_message(int friendnumber, uint8_t *string, uint16_t length)
+void on_message(Messenger *m, int friendnumber, uint8_t *string, uint16_t length, void* userdata)
 {
   int i;
   for (i = 0; i < MAX_WINDOW_SLOTS; ++i) {
     if (windows[i].onMessage != NULL)
-      windows[i].onMessage(&windows[i], friendnumber, string, length);
+      windows[i].onMessage(&windows[i], m, friendnumber, string, length);
   }
 }
 
-void on_action(int friendnumber, uint8_t *string, uint16_t length)
+void on_action(Messenger *m, int friendnumber, uint8_t *string, uint16_t length, void* userdata)
 {
   int i;
   for (i = 0; i < MAX_WINDOW_SLOTS; ++i) {
     if (windows[i].onAction != NULL)
-      windows[i].onAction(&windows[i], friendnumber, string, length);
+      windows[i].onAction(&windows[i], m, friendnumber, string, length);
   }
 }
 
-void on_nickchange(int friendnumber, uint8_t *string, uint16_t length)
+void on_nickchange(Messenger *m, int friendnumber, uint8_t *string, uint16_t length, void* userdata)
 {
   wprintw(prompt->window, "\n(nickchange) %d: %s\n", friendnumber, string);
   int i;
@@ -91,7 +93,7 @@ void on_nickchange(int friendnumber, uint8_t *string, uint16_t length)
   }
 }
 
-void on_statuschange(int friendnumber, uint8_t *string, uint16_t length)
+void on_statuschange(Messenger *m, int friendnumber, uint8_t *string, uint16_t length, void* userdata)
 {
   wprintw(prompt->window, "\n(statuschange) %d: %s\n", friendnumber, string);
   int i;
@@ -103,7 +105,7 @@ void on_statuschange(int friendnumber, uint8_t *string, uint16_t length)
 
 void on_friendadded(int friendnumber)
 {
-  friendlist_onFriendAdded(friendnumber);
+  friendlist_onFriendAdded(m, friendnumber);
 }
 /* CALLBACKS END */
 
@@ -122,6 +124,7 @@ static void init_term()
     init_pair(2, COLOR_CYAN, COLOR_BLACK);
     init_pair(3, COLOR_RED, COLOR_BLACK);
     init_pair(4, COLOR_BLUE, COLOR_BLACK);
+    init_pair(5, COLOR_YELLOW, COLOR_BLACK);
   }
   refresh();
 }
@@ -129,14 +132,21 @@ static void init_term()
 static void init_tox()
 {
   /* Init core */
-  initMessenger();
+  m = initMessenger();
 
   /* Callbacks */
-  m_callback_friendrequest(on_request);
-  m_callback_friendmessage(on_message);
-  m_callback_namechange(on_nickchange);
-  m_callback_statusmessage(on_statuschange);
-  m_callback_action(on_action);
+  m_callback_friendrequest(m, on_request, NULL);
+  m_callback_friendmessage(m, on_message, NULL);
+  m_callback_namechange(m, on_nickchange, NULL);
+  m_callback_statusmessage(m, on_statuschange, NULL);
+  m_callback_action(m, on_action, NULL);
+#ifdef __linux__
+  setname(m, (uint8_t*) "Cool guy", sizeof("Cool guy"));
+#elif WIN32
+  setname(m, (uint8_t*) "I should install GNU/Linux", sizeof("I should install GNU/Linux"));
+#else
+  setname(m, (uint8_t*) "Hipster", sizeof("Hipster"));
+#endif
 }
 
 #define MAXLINE 90    /* Approx max number of chars in a sever line (IP + port + key) */
@@ -157,8 +167,7 @@ int init_connection(void)
   char line[MAXLINE];
   int linecnt = 0;
   while (fgets(line, sizeof(line), fp) && linecnt < MAXSERVERS) {
-    int len = strlen(line);
-    if (len > MINLINE && len < MAXLINE)
+    if (strlen(line) > MINLINE)
       strcpy(servers[linecnt++], line);
   }
   if (linecnt < 1) {
@@ -178,7 +187,7 @@ int init_connection(void)
   dht.port = htons(atoi(port));
   uint32_t resolved_address = resolve_addr(ip);
   if (resolved_address == 0)
-    return 4;
+    return 0;
   dht.ip.i = resolved_address;
   unsigned char *binary_string = hex_string_to_bin(key);
   DHT_bootstrap(dht, binary_string);
@@ -211,7 +220,7 @@ int add_window(ToxWindow w, int n)
     return -1;
 
   windows[n] = w;
-  w.onInit(&w);
+  w.onInit(&w, m);
   w_num++;
   return n;
 }
@@ -237,7 +246,7 @@ static void init_windows()
   w_num = 0;
   int n_prompt = 0;
   int n_friendslist = 1;
-  if (add_window(new_prompt(), n_prompt) == -1 
+  if (add_window(new_prompt(), n_prompt) == -1
                         || add_window(new_friendlist(), n_friendslist) == -1) {
     fprintf(stderr, "add_window() failed.\n");
     endwin();
@@ -248,16 +257,26 @@ static void init_windows()
 
 static void do_tox()
 {
+  static int conn_try = 0;
+  static int conn_err = 0;
   static bool dht_on = false;
-  if (!dht_on && DHT_isconnected()) {
+  if (!dht_on && !DHT_isconnected() && !(conn_try++ % 100)) {
+    if (!conn_err) {
+      conn_err = init_connection();
+      wprintw(prompt->window, "\nEstablishing connection...\n");
+      if (conn_err)
+	wprintw(prompt->window, "\nAuto-connect failed with error code %d\n", conn_err);
+    }
+  }
+  else if (!dht_on && DHT_isconnected()) {
     dht_on = true;
     wprintw(prompt->window, "\nDHT connected.\n");
   }
   else if (dht_on && !DHT_isconnected()) {
     dht_on = false;
-    wprintw(prompt->window, "\nDHT disconnected.\n");
+    wprintw(prompt->window, "\nDHT disconnected. Attempting to reconnect.\n");
   }
-  doMessenger();
+  doMessenger(m);
 }
 
 static void load_data(char *path)
@@ -285,17 +304,17 @@ static void load_data(char *path)
       endwin();
       exit(1);
     }
-    Messenger_load(buf, len);
+    Messenger_load(m, buf, len);
   }
   else {
-    len = Messenger_size();
+    len = Messenger_size(m);
     buf = malloc(len);
     if (buf == NULL) {
       fprintf(stderr, "malloc() failed.\n");
       endwin();
       exit(1);
     }
-    Messenger_save(buf);
+    Messenger_save(m, buf);
 
     fd = fopen(path, "w");
     if (fd == NULL) {
@@ -329,7 +348,7 @@ static void draw_bar()
   move(LINES - 1, 0);
 
   attron(COLOR_PAIR(4) | A_BOLD);
-  printw(" TOXIC " TOXICVER "|"); 
+  printw(" TOXIC " TOXICVER "|");
   attroff(COLOR_PAIR(4) | A_BOLD);
 
   int i;
@@ -440,10 +459,6 @@ int main(int argc, char *argv[])
     load_data(DATA_FILE);
   free(DATA_FILE);
 
-  int connected = init_connection();
-  if (connected != 0)
-    wprintw(prompt->window, "Auto-connect failed (error code %d)\n", connected);
-
   if (f_flag == -1) {
     attron(COLOR_PAIR(3) | A_BOLD);
     wprintw(prompt->window, "You passed '-f' without giving an argument.\n"
@@ -473,7 +488,8 @@ int main(int argc, char *argv[])
     if (ch == '\t' || ch == KEY_BTAB)
       set_active_window(ch);
     else if (ch != ERR)
-      a->onKey(a, ch);
+      a->onKey(a, m, ch);
   }
+  cleanupMessenger(m);
   return 0;
 }
