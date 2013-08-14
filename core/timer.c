@@ -155,7 +155,7 @@ void timer_start(timer* t, int sec)
     uint64_t newdeadline = current_time() + sec * US_PER_SECOND;
     if (timer_is_active(t)){
         if (t->deadline < newdeadline) {
-            timer_delay_us(t, newdeadline - t->deadline);
+            timer_delay_us(t, (int)(newdeadline - t->deadline));
             return;
         }
         timer_dequeue(t, &timer_main_queue);
@@ -193,7 +193,7 @@ static uint64_t timer_diff(timer* t, uint64_t time)
 int timer_time_remaining(timer* t)
 {
     if (!timer_is_active(t)) return -1;
-    return timer_diff(t, current_time()) / US_PER_SECOND;
+    return (int)(timer_diff(t, current_time()) / US_PER_SECOND);
 }
 
 bool timer_is_active(timer* t)
