@@ -198,11 +198,7 @@ void line_eval(Messenger *m, char *line)
                 }
             }
             int num = atoi(numstring);
-<<<<<<< HEAD
-            if (m_sendmessage(num, (uint8_t*) message, (uint32_t)strlen(message) + 1) != 1) {
-=======
             if (m_sendmessage(m, num, (uint8_t*) message, strlen(message) + 1) != 1) {
->>>>>>> c8a46e1c09ccbd37e570c9abd1501aaf9e73a12d
                 new_lines("[i] could not send message");
             } else {
                 new_lines(format_message(m, message, -1));
