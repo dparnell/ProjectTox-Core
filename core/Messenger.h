@@ -230,9 +230,6 @@ uint16_t getself_name(Messenger *m, uint8_t *name, uint16_t nlen);
     return 0 if success
     return -1 if failure */
 int getname(Messenger *m, int friendnumber, uint8_t *name);
-
-/* calls the namechange callback for each friend */
-void enumerate_friends();
     
 /* set our user status
     you are responsible for freeing status after
