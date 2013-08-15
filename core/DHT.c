@@ -65,17 +65,6 @@
 
 typedef struct {
     uint8_t     client_id[CLIENT_ID_SIZE];
-    IP_Port     ip_port;
-    uint64_t    timestamp;
-    uint64_t    last_pinged;
-
-    /* Returned by this node. Either our friend or us */
-    IP_Port     ret_ip_port;
-    uint64_t    ret_timestamp;
-} Client_data;
-
-typedef struct {
-    uint8_t     client_id[CLIENT_ID_SIZE];
     Client_data client_list[MAX_FRIEND_CLIENTS];
 
     /* time at which the last get_nodes request was sent. */
@@ -114,6 +103,12 @@ static uint16_t     num_friends;
 static Pinged       send_nodes[LSEND_NODES_ARRAY];
 
 /*----------------------------------------------------------------------------------*/
+
+
+Client_data * DHT_get_close_list(void)
+{
+    return close_clientlist;
+}
 
 /* Compares client_id1 and client_id2 with client_id
  * return 0 if both are same distance
@@ -324,6 +319,28 @@ static int replace_bad(    Client_data *   list,
 
     return 1;
 }
+/*Sort the list. It will be sorted from furthest to closest. 
+  TODO: this is innefficient and needs to be optimized.*/
+static void sort_list(Client_data *list, uint32_t length, uint8_t *comp_client_id)
+{
+    if(length == 0)
+        return;
+    uint32_t i, count;
+    while(1) {
+        count = 0;
+        for(i = 0; i < (length - 1); ++i) {
+            if(id_closest(comp_client_id, list[i].client_id, list[i + 1].client_id) == 1) {
+                Client_data temp = list[i + 1];
+                list[i + 1] = list[i];
+                list[i] = temp;
+                ++count;
+            }
+        }
+        if(count == 0)
+            return;
+    }
+}
+
 
 /* replace the first good node that is further to the comp_client_id than that of the client_id in the list */
 static int replace_good(   Client_data *   list,
@@ -334,6 +351,7 @@ static int replace_good(   Client_data *   list,
 {
     uint32_t i;
     uint64_t temp_time = unix_time();
+    sort_list(list, length, comp_client_id);
 
     for(i = 0; i < length; ++i)
         if(id_closest(comp_client_id, list[i].client_id, client_id) == 2) {
@@ -633,6 +651,8 @@ static int handle_sendnodes(IP_Port source, uint8_t * packet, uint32_t length)
 
 int DHT_addfriend(uint8_t * client_id)
 {
+    if(friend_number(client_id) != -1) /*Is friend already in DHT?*/
+        return 1;
     Friend * temp;
     temp = realloc(friends_list, sizeof(Friend) * (num_friends + 1));
     if (temp == NULL)
@@ -930,49 +950,30 @@ static int send_NATping(uint8_t * public_key, uint64_t ping_id, uint8_t type)
 }
 
 /* Handle a received ping request for */
-static int handle_NATping(IP_Port source, uint8_t * packet, uint32_t length) 
+static int handle_NATping(IP_Port source, uint8_t * source_pubkey, uint8_t * packet, uint32_t length) 
 {
-    if (length < crypto_box_PUBLICKEYBYTES * 2 + crypto_box_NONCEBYTES + ENCRYPTION_PADDING 
-            || length > MAX_DATA_SIZE + ENCRYPTION_PADDING)
+    uint64_t ping_id;
+    memcpy(&ping_id, packet + 1, sizeof(uint64_t));
+
+    int friendnumber = friend_number(source_pubkey);
+    if (friendnumber == -1)
         return 1;
 
-    /* check if request is for us. */
-    if (id_equal(packet + 1, self_public_key)) {
-        uint8_t public_key[crypto_box_PUBLICKEYBYTES];
-        uint8_t data[MAX_DATA_SIZE];
+    Friend * friend = &friends_list[friendnumber];
 
-        int len = handle_request(public_key, data, packet, length);
-        if (len != sizeof(uint64_t) + 1)
-            return 1;
-
-        uint64_t ping_id;
-        memcpy(&ping_id, data + 1, sizeof(uint64_t));
-
-        int friendnumber = friend_number(public_key);
-        if (friendnumber == -1)
-            return 1;
-
-        Friend * friend = &friends_list[friendnumber];
-
-        if (data[0] == 0) {
-            /* 1 is reply */
-            send_NATping(public_key, ping_id, 1);
-            friend->recvNATping_timestamp = unix_time();
+    if (packet[0] == 0) {
+        /* 1 is reply */
+        send_NATping(source_pubkey, ping_id, 1);
+        friend->recvNATping_timestamp = unix_time();
+        return 0;
+    } else if (packet[0] == 1) {
+        if (friend->NATping_id == ping_id) {
+            friend->NATping_id = ((uint64_t)random_int() << 32) + random_int();
+            friend->hole_punching = 1;
             return 0;
-        } else if (data[0] == 1) {
-            if (friend->NATping_id == ping_id) {
-                friend->NATping_id = ((uint64_t)random_int() << 32) + random_int();
-                friend->hole_punching = 1;
-                return 0;
-            }
         }
-        return 1;
     }
-
-    /* if request is not for us, try routing it. */
-    route_packet(packet + 1, packet, length);
-
-    return 0;
+    return 1;
 }
 
 /* Get the most common ip in the ip_portlist
@@ -1080,7 +1081,7 @@ void DHT_init(void)
     networking_registerhandler(1, &handle_ping_response);
     networking_registerhandler(2, &handle_getnodes);
     networking_registerhandler(3, &handle_sendnodes);
-    networking_registerhandler(254, &handle_NATping);
+    cryptopacket_registerhandler(254, &handle_NATping);
 }
 
 void doDHT(void)

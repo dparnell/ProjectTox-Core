@@ -63,6 +63,7 @@ extern "C" {
 #define FAERR_UNKNOWN -5
 #define FAERR_BADCHECKSUM -6
 #define FAERR_SETNEWNOSPAM -7
+#define FAERR_NOMEM -8
 
 /* don't assume MAX_STATUSMESSAGE_LENGTH will stay at 128, it may be increased
     to an absurdly large number later */
@@ -111,28 +112,20 @@ typedef struct Messenger {
     uint32_t numfriends;
 
     void (*friend_message)(struct Messenger *m, int, uint8_t *, uint16_t, void*);
-    uint8_t friend_message_isset;
     void* friend_message_userdata;
     void (*friend_action)(struct Messenger *m, int, uint8_t *, uint16_t, void*);
-    uint8_t friend_action_isset;
     void* friend_action_userdata;
     void (*friend_namechange)(struct Messenger *m, int, uint8_t *, uint16_t, void*);
-    uint8_t friend_namechange_isset;
     void* friend_namechange_userdata;
     void (*friend_statusmessagechange)(struct Messenger *m, int, uint8_t *, uint16_t, void*);
-    uint8_t friend_statusmessagechange_isset;
     void* friend_statusmessagechange_userdata;
     void (*friend_userstatuschange)(struct Messenger *m, int, USERSTATUS, void*);
-    uint8_t friend_userstatuschange_isset;
     void* friend_userstatuschange_userdata;
     void (*read_receipt)(struct Messenger *m, int, uint32_t, void*);
-    uint8_t read_receipt_isset;
     void* read_receipt_userdata;
     void (*friend_statuschange)(struct Messenger *m, int, uint8_t, void*);
-    uint8_t friend_statuschange_isset;
     void* friend_statuschange_userdata;
     void (*friend_connectionstatuschange)(struct Messenger *m, int, uint8_t, void*);
-    uint8_t friend_connectionstatuschange_isset;
     void* friend_connectionstatuschange_userdata;
 
 
@@ -141,7 +134,7 @@ typedef struct Messenger {
 /*
  * returns a FRIEND_ADDRESS_SIZE byte address to give to others.
  * format: [client_id (32 bytes)][nospam number (4 bytes)][checksum (2 bytes)]
- * 
+ *
  */
 void getaddress(Messenger *m, uint8_t *address);
 
@@ -157,8 +150,9 @@ void getaddress(Messenger *m, uint8_t *address);
  * return -4 if friend request already sent or already a friend
  * return -5 for unknown error
  * return -6 if bad checksum in address
- * return -7 if the friend was already there but the nospam was different 
+ * return -7 if the friend was already there but the nospam was different
  * (the nospam for that friend was set to the new one)
+ * return -8 if increasing the friend list size fails
  */
 int m_addfriend(Messenger *m, uint8_t *address, uint8_t *data, uint16_t length);
 
