@@ -1,5 +1,5 @@
 /*  nTox_win32.h
- * 
+ *
  *  Textual frontend for Tox - Windows version
  *
  *  Copyright (C) 2013 Tox project All Rights Reserved.
@@ -30,9 +30,10 @@
 #define PUB_KEY_BYTES 32
 
 void do_header();
-void print_message(int friendnumber, uint8_t * string, uint16_t length);
-void print_nickchange(int friendnumber, uint8_t *string, uint16_t length);
-void print_statuschange(int friendnumber, uint8_t *string, uint16_t length);
+void print_request(uint8_t *public_key, uint8_t *data, uint16_t length, void *userdata);
+void print_message(Messenger *messenger, int friendnumber, uint8_t *string, uint16_t length, void *userdata);
+void print_nickchange(Messenger *messenger, int friendnumber, uint8_t *string, uint16_t length, void *userdata);
+void print_statuschange(Messenger *messenger, int friendnumber, uint8_t *string, uint16_t length, void *userdata);
 void load_key();
 void add_friend();
 void list_friends();
@@ -41,7 +42,7 @@ void message_friend();
 void change_nickname();
 void change_status(int savetofile);
 void accept_friend_request();
-void line_eval(char* line);
+void line_eval(char *line);
 void get_input();
 
 #endif

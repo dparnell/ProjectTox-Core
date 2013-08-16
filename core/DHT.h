@@ -39,13 +39,13 @@ typedef struct {
     IP_Port     ip_port;
     uint64_t    timestamp;
     uint64_t    last_pinged;
-    
+
     /* Returned by this node. Either our friend or us */
     IP_Port     ret_ip_port;
     uint64_t    ret_timestamp;
 } Client_data;
 
-Client_data * DHT_get_close_list(void);
+Client_data *DHT_get_close_list(void);
 
 /* Add a new friend to the friends list
     client_id must be CLIENT_ID_SIZE bytes long.
@@ -74,6 +74,16 @@ void doDHT(void);
 /* Use this function to bootstrap the client
     Sends a get nodes request to the given node with ip port and public_key */
 void DHT_bootstrap(IP_Port ip_port, uint8_t *public_key);
+
+/* Add nodes to the toping list
+   all nodes in this list are pinged every TIME_TOPING seconds
+   and are then removed from the list.
+   if the list is full the nodes farthest from our client_id are replaced
+   the purpose of this list is to enable quick integration of new nodes into the
+   network while preventing amplification attacks.
+   return 0 if node was added
+   return -1 if node was not added */
+int add_toping(uint8_t *client_id, IP_Port ip_port);
 
 /* ROUTING FUNCTIONS */
 
@@ -113,7 +123,7 @@ int DHT_load(uint8_t *data, uint32_t size);
     returns 1 if we are */
 int DHT_isconnected();
 
-void addto_lists(IP_Port ip_port, uint8_t * client_id);
+void addto_lists(IP_Port ip_port, uint8_t *client_id);
 
 #ifdef __cplusplus
 }
