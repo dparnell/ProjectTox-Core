@@ -79,14 +79,8 @@ static int receivepacket(IP_Port *ip_port, uint8_t *data, uint32_t *length)
 #else
     uint32_t addrlen = sizeof(addr);
 #endif
-<<<<<<< HEAD
     (*(int32_t*)length) = (int32_t)recvfrom(sock,(char*) data, MAX_UDP_PACKET_SIZE, 0, (struct sockaddr*)&addr, &addrlen);
     if (*(int32_t*)length <= 0)
-=======
-    (*(int32_t *)length) = recvfrom(sock, (char *) data, MAX_UDP_PACKET_SIZE, 0, (struct sockaddr *)&addr, &addrlen);
-
-    if (*(int32_t *)length <= 0)
->>>>>>> 88ff81d9def5efe69cbaf91aa41906177ba7dde9
         return -1; /* nothing received or empty packet */
 
     ip_port->ip = addr.ip;
