@@ -27,6 +27,7 @@
 
 /* Export for use in Callbacks */
 char *DATA_FILE = NULL;
+char *SRVLIST_FILE = NULL;
 
 void on_window_resize(int sig)
 {
@@ -52,6 +53,10 @@ static void init_term()
         init_pair(3, COLOR_RED, COLOR_BLACK);
         init_pair(4, COLOR_BLUE, COLOR_BLACK);
         init_pair(5, COLOR_YELLOW, COLOR_BLACK);
+        init_pair(6, COLOR_MAGENTA, COLOR_BLACK);
+        init_pair(7, COLOR_BLACK, COLOR_BLACK);
+        init_pair(8, COLOR_BLACK, COLOR_WHITE);
+
     }
 
     refresh();
@@ -70,10 +75,12 @@ static Messenger *init_tox()
     m_callback_action(m, on_action, NULL);
 #ifdef __linux__
     setname(m, (uint8_t *) "Cool guy", sizeof("Cool guy"));
-#elif WIN32
+#elif defined(WIN32)
     setname(m, (uint8_t *) "I should install GNU/Linux", sizeof("I should install GNU/Linux"));
+#elif defined(__APPLE__)
+    setname(m, (uint8_t *) "Hipster", sizeof("Hipster")); //This used to users of other Unixes are hipsters
 #else
-    setname(m, (uint8_t *) "Hipster", sizeof("Hipster"));
+    setname(m, (uint8_t *) "Registered Minix user #4", sizeof("Registered Minix user #4"));
 #endif
     return m;
 }
@@ -83,12 +90,14 @@ static Messenger *init_tox()
 #define MAXSERVERS 50
 
 /* Connects to a random DHT server listed in the DHTservers file */
-int init_connection(void)
+int init_connection(Messenger *m)
 {
-    if (DHT_isconnected())
+    FILE *fp = NULL;
+
+    if (DHT_isconnected(m->dht))
         return 0;
 
-    FILE *fp = fopen("../../../other/DHTservers", "r");
+    fp = fopen(SRVLIST_FILE, "r");
 
     if (!fp)
         return 1;
@@ -126,7 +135,7 @@ int init_connection(void)
 
     dht.ip.i = resolved_address;
     unsigned char *binary_string = hex_string_to_bin(key);
-    DHT_bootstrap(dht, binary_string);
+    DHT_bootstrap(m->dht, dht, binary_string);
     free(binary_string);
     return 0;
 }
@@ -137,18 +146,18 @@ static void do_tox(Messenger *m, ToxWindow *prompt)
     static int conn_err = 0;
     static bool dht_on = false;
 
-    if (!dht_on && !DHT_isconnected() && !(conn_try++ % 100)) {
+    if (!dht_on && !DHT_isconnected(m->dht) && !(conn_try++ % 100)) {
         if (!conn_err) {
-            conn_err = init_connection();
+            conn_err = init_connection(m);
             wprintw(prompt->window, "\nEstablishing connection...\n");
 
             if (conn_err)
                 wprintw(prompt->window, "\nAuto-connect failed with error code %d\n", conn_err);
         }
-    } else if (!dht_on && DHT_isconnected()) {
+    } else if (!dht_on && DHT_isconnected(m->dht)) {
         dht_on = true;
         wprintw(prompt->window, "\nDHT connected.\n");
-    } else if (dht_on && !DHT_isconnected()) {
+    } else if (dht_on && !DHT_isconnected(m->dht)) {
         dht_on = false;
         wprintw(prompt->window, "\nDHT disconnected. Attempting to reconnect.\n");
     }
@@ -282,11 +291,17 @@ int main(int argc, char *argv[])
 
         if (config_err) {
             DATA_FILE = strdup("data");
+            SRVLIST_FILE = strdup("../../other/DHTservers");
         } else {
             DATA_FILE = malloc(strlen(user_config_dir) + strlen(CONFIGDIR) + strlen("data") + 1);
             strcpy(DATA_FILE, user_config_dir);
             strcat(DATA_FILE, CONFIGDIR);
             strcat(DATA_FILE, "data");
+
+            SRVLIST_FILE = malloc(strlen(user_config_dir) + strlen(CONFIGDIR) + strlen("DHTservers") + 1);
+            strcpy(SRVLIST_FILE, user_config_dir);
+            strcat(SRVLIST_FILE, CONFIGDIR);
+            strcat(SRVLIST_FILE, "DHTservers");
         }
     }
 
@@ -295,7 +310,6 @@ int main(int argc, char *argv[])
     init_term();
     Messenger *m = init_tox();
     ToxWindow *prompt = init_windows(m);
-    init_window_status();
 
     if (f_loadfromfile)
         load_data(m, DATA_FILE);
@@ -324,5 +338,6 @@ int main(int argc, char *argv[])
 
     cleanupMessenger(m);
     free(DATA_FILE);
+    free(SRVLIST_FILE);
     return 0;
 }

@@ -123,7 +123,6 @@ static void chat_onStatusChange(ToxWindow *self, int num, uint8_t *status, uint1
 
     status[len - 1] = '\0';
     fix_name(status);
-    snprintf(self->title, sizeof(self->title), "[%s (%d)]", status, num);
 
     wattron(ctx->history, COLOR_PAIR(3));
     wprintw(ctx->history, "* Your partner changed status to '%s'\n", status);
@@ -335,14 +334,15 @@ void execute(ToxWindow *self, ChatContext *ctx, Messenger *m, char *cmd)
     else if (strcmp(ctx->line, "/close") == 0) {
         int f_num = ctx->friendnum;
         delwin(ctx->linewin);
-        del_window(self, f_num);
+        del_window(self);
+        disable_chatwin(f_num);
     }
 
     else
         wprintw(ctx->history, "Invalid command.\n");
 }
 
-static void chat_onDraw(ToxWindow *self)
+static void chat_onDraw(ToxWindow *self, Messenger *m)
 {
     curs_set(1);
     int x, y;

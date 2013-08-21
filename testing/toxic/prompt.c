@@ -19,7 +19,6 @@ extern int store_data(Messenger *m, char *path);
 uint8_t pending_requests[MAX_STR_SIZE][CLIENT_ID_SIZE]; // XXX
 uint8_t num_requests = 0; // XXX
 
-static friendAddedFn *on_friendadded_cb;
 static char prompt_buf[MAX_STR_SIZE] = {0};
 static int prompt_buf_pos = 0;
 
@@ -97,7 +96,7 @@ void cmd_accept(ToxWindow *self, Messenger *m, char **args)
         wprintw(self->window, "Failed to add friend.\n");
     else {
         wprintw(self->window, "Friend accepted as: %d.\n", num);
-        on_friendadded_cb(m, num);
+        on_friendadded(m, num);
     }
 }
 
@@ -174,7 +173,7 @@ void cmd_add(ToxWindow *self, Messenger *m, char **args)
 
         default:
             wprintw(self->window, "Friend added as %d.\n", num);
-            on_friendadded_cb(m, num);
+            on_friendadded(m, num);
             break;
     }
 }
@@ -205,7 +204,7 @@ void cmd_connect(ToxWindow *self, Messenger *m, char **args)
 
     dht.ip.i = resolved_address;
     unsigned char *binary_string = hex_string_to_bin(key);
-    DHT_bootstrap(dht, binary_string);
+    DHT_bootstrap(m->dht, dht, binary_string);
     free(binary_string);
 }
 
@@ -273,6 +272,7 @@ void cmd_nick(ToxWindow *self, Messenger *m, char **args)
     char *nick = args[1];
     setname(m, (uint8_t *) nick, strlen(nick) + 1);
     wprintw(self->window, "Nickname set to: %s\n", nick);
+
     if (store_data(m, DATA_FILE)) {
         wprintw(self->window, "\nCould not store Messenger data\n");
     }
@@ -363,6 +363,13 @@ static void execute(ToxWindow *self, Messenger *m, char *u_cmd)
 
         if (cmd[i] == ' ') {
             cmd[i] = '\0';
+
+            int j = i;
+
+            while (++j < MAX_STR_SIZE && isspace(cmd[j]));
+
+            i = j - 1;
+
             numargs++;
         }
     }
@@ -380,6 +387,9 @@ static void execute(ToxWindow *self, Messenger *m, char *u_cmd)
     for (i = 0; i < 5; i++) {
         cmdargs[i] = cmd + pos;
         pos += strlen(cmdargs[i]) + 1;
+
+        while (isspace(cmd[pos]) && pos < MAX_STR_SIZE)
+            ++pos;
     }
 
     /* no input */
@@ -452,7 +462,7 @@ static void prompt_onKey(ToxWindow *self, Messenger *m, int key)
     }
 }
 
-static void prompt_onDraw(ToxWindow *self)
+static void prompt_onDraw(ToxWindow *self, Messenger *m)
 {
     curs_set(1);
     int x, y;
@@ -480,9 +490,8 @@ static void prompt_onInit(ToxWindow *self, Messenger *m)
     wclrtoeol(self->window);
 }
 
-ToxWindow new_prompt(friendAddedFn *f)
+ToxWindow new_prompt()
 {
-    on_friendadded_cb = f;
     ToxWindow ret;
     memset(&ret, 0, sizeof(ret));
     ret.onKey = &prompt_onKey;
