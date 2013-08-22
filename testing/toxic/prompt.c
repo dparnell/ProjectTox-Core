@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <curses.h>
 
 #include "../../core/Messenger.h"
 #include "../../core/network.h"
@@ -358,8 +357,16 @@ static void execute(ToxWindow *self, Messenger *m, char *u_cmd)
     int numargs = 0;
 
     for (i = 0; i < MAX_STR_SIZE; i++) {
-        if (cmd[i] == '\"')
-            while (cmd[++i] != '\"'); /* skip over strings */
+        char quote_chr;
+        if (cmd[i] == '\"' || cmd[i] == '\'') {
+            quote_chr = cmd[i];
+            while (cmd[++i] != quote_chr && i < MAX_STR_SIZE); /* skip over strings */
+            /* Check if got qoute character */
+            if (cmd[i] != quote_chr) {
+                wprintw(self->window, "Missing terminating %c character\n", quote_chr);
+                return;
+            }
+	}
 
         if (cmd[i] == ' ') {
             cmd[i] = '\0';
@@ -426,7 +433,7 @@ static void execute(ToxWindow *self, Messenger *m, char *u_cmd)
     wprintw(self->window, "Invalid command.\n");
 }
 
-static void prompt_onKey(ToxWindow *self, Messenger *m, int key)
+static void prompt_onKey(ToxWindow *self, Messenger *m, wint_t key)
 {
     /* Add printable characters to line */
     if (isprint(key)) {
