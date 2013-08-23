@@ -63,9 +63,8 @@ mkdir build && cd build
 cmake ..
 ```
 Advance cmake options:
-  - `-DSHARED_TOXCORE=ON` (default `OFF`) � Build Core as a shared library.
   - `-DUSE_NACL=ON` (default `OFF`) � Use NaCl library instead of libsodium.
-  
+   
 Note that you should call cmake on the root [`CMakeLists.txt`](/CMakeLists.txt) file only.
 
 Then you can build any of the [`/testing`](/testing) and [`/other`](/other) that are currently supported on your platform by running:
