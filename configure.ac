@@ -10,6 +10,17 @@ AM_INIT_AUTOMAKE([1.10 -Wall])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
 
+LIBTOXCORE_LT_VERSION=0:0:0
+dnl
+dnl            current:revision:age
+dnl
+dnl current:  increment if interfaces have been added, removed or changed
+dnl revision: increment if source code has changed, set to zero if current is
+dnl           incremented
+dnl age:      increment if interfaces have been added, set to zero if
+dnl           interfaces have been removed or changed
+EXTRA_LT_LDFLAGS="-version-info $LIBTOXCORE_LT_VERSION"
+
 if test "x${prefix}" = "xNONE"; then
     prefix="${ac_default_prefix}"
 fi
@@ -96,6 +107,7 @@ AC_ARG_WITH(libsodium-libs,
 # Checks for programs.
 AC_PROG_CC
 AM_PROG_CC_C_O
+AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 
 WIN32=no
@@ -103,14 +115,20 @@ AC_CANONICAL_HOST
 case $host_os in
     *mingw*)
         WIN32="yes"
-        AC_MSG_WARN([nTox is not supported on $host_os yet, disabling])
-        BUILD_NTOX="no"
+        EXTRA_LT_LDFLAGS="$EXTRA_LT_LDFLAGS -no-undefined"
     ;;
     *solaris*)
         LIBS="$LIBS -lssp -lsocket -lnsl"
     ;;
+    *freebsd*)
+        LDFLAGS="$LDFLAGS -L/usr/local/lib"
+        CFLAGS="$CFLAGS -I/usr/local/include"
+        CPPFLAGS="$CPPFLAGS -I/usr/local/include"
+    ;;
 esac
 AM_CONDITIONAL(WIN32, test "x$WIN32" = "xyes")
+
+AC_SUBST(EXTRA_LT_LDFLAGS)
 
 # Checks for libraries.
 LIBSODIUM_LIBS=
@@ -131,7 +149,7 @@ else
     AC_CHECK_LIB(sodium, randombytes_random,
         [],
         [
-            AC_MSG_ERROR([required library libsodium was not found on your system, please check http://download.libsodium.org/libsodium/releases/]) 
+            AC_MSG_ERROR([required library libsodium was not found on your system, please check http://download.libsodium.org/libsodium/releases/])
         ]
     )
 fi
@@ -182,9 +200,8 @@ AC_TYPE_UINT8_T
 
 # Checks for library functions.
 AC_FUNC_FORK
-AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([gettimeofday memset socket strchr])
+AC_CHECK_FUNCS([gettimeofday memset socket strchr malloc])
 
 # pkg-config based tests
 PKG_PROG_PKG_CONFIG
@@ -251,22 +268,41 @@ if (test "x$BUILD_NTOX" = "xyes") && (test "x$NCURSES_FOUND" != "xyes"); then
             ]
         )
         if test "x$BUILD_NTOX" = "xyes"; then
-            AC_CHECK_LIB([ncurses], [clear],
-                [],
-                [
-                    unset ac_cv_lib_ncurses_clear
-                    AC_CHECK_LIB([ncurses], [clear],
-                        [],
-                        [
-                            AC_MSG_WARN([not building nTox client because required library ncurses was not found on your system])
-                            BUILD_NTOX="no"
-                        ],
-                        [
-                            -ltinfo
-                        ]
-                    )
-                ]
-            )
+            if test "x$WIN32" = "xyes"; then
+                AC_CHECK_LIB([pdcurses], [clear],
+                    [
+                        NCURSES_LIBS="-lpdcurses"
+                        AC_SUBST(NCURSES_LIBS)
+                    ],
+                    [
+                        AC_MSG_ERROR([required library pdcurses was not found on your system])
+                        BUILD_NTOX="no"
+                    ]
+                )
+            else
+                AC_CHECK_LIB([ncurses], [clear],
+                    [
+                        NCURSES_LIBS="-lncurses"
+                        AC_SUBST(NCURSES_LIBS)
+                    ],
+                    [
+                        unset ac_cv_lib_ncurses_clear
+                        AC_CHECK_LIB([ncurses], [clear],
+                            [
+                                NCURSES_LIBS="-lncurses -ltinfo"
+                                AC_SUBST(NCURSES_LIBS)
+                            ],
+                            [
+                                AC_MSG_WARN([not building nTox client because required library ncurses was not found on your system])
+                                BUILD_NTOX="no"
+                            ],
+                            [
+                                -ltinfo
+                            ]
+                        )
+                    ]
+                )
+            fi
         fi
     fi
 fi
