@@ -71,7 +71,7 @@ int sendpacket(int sock, IP_Port ip_port, uint8_t *data, uint32_t length)
 #endif
 {
     ADDR addr = {AF_INET, ip_port.port, ip_port.ip, {0}};
-    return sendto(sock, (char *) data, length, 0, (struct sockaddr *)&addr, sizeof(addr));
+    return (int)sendto(sock, (char *) data, length, 0, (struct sockaddr *)&addr, sizeof(addr));
 }
 
 /* Function to receive data
